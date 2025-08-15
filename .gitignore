@@ -41,6 +41,8 @@ pip-delete-this-directory.txt
 *.nbconvert.ipynb
 nbsignatures.db
 history.sqlite
+.jupyter/
+.local/
 
 # IPython
 profile_default/
@@ -96,4 +98,13 @@ Thumbs.db
 # JupyterLab workspace
 .jupyter/lab/workspaces/
 lab/workspaces/
+
+
+# Ignore shell config and history files
+.bashrc
+.lesshst
+
+# Ignore SageMaker or Jupyter plugin caches
+.sagemaker_sql_editor_api_cache
+
 
