@@ -17,6 +17,7 @@ import os
 import argparse
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import joblib
 import glob
@@ -25,8 +26,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--tracking_server_arn", type=str, required=True)
 parser.add_argument("--experiment_name", type=str, default="Default")
 parser.add_argument("--model_output_path", type=str, default="/opt/ml/model")
-parser.add_argument("-C", "--C", type=float, default=0.5)
-parser.add_argument("--run_name", type=str, default="Experiment-LR")
+parser.add_argument("--model_type", type=str, default="logistic_regression")
+parser.add_argument("--C", type=float, default=0.5) #Only for LR
+parser.add_argument("--n_estimators", type=int, default=100)  # Only for RF
+parser.add_argument("--max_depth", type=int, default=None)  # Only for RF
+parser.add_argument("--run_name", type=str, default="run-default")
 args, _ = parser.parse_known_args()
 
 print('Start-Train')
@@ -43,8 +47,21 @@ mlflow.set_tracking_uri(args.tracking_server_arn)
 mlflow.set_experiment(args.experiment_name)
 
 with mlflow.start_run(run_name=args.run_name) as run:
-    mlflow.log_param("C", args.C)
-    model = LogisticRegression(C=args.C)
+    
+    mlflow.log_param("model_type", args.model_type)
+
+    if args.model_type == "logistic_regression":
+        mlflow.log_param("C", args.C)
+        model = LogisticRegression(C=args.C)
+        print('LR')
+    elif args.model_type == "random_forest":
+        mlflow.log_param("n_estimators", args.n_estimators)
+        mlflow.log_param("max_depth", args.max_depth)
+        model = RandomForestClassifier(n_estimators=args.n_estimators, max_depth=args.max_depth)
+        print('RF')
+    else:
+        raise ValueError(f"Unsupported model type: {args.model_type}")
+        
     model.fit(X, y)
     acc = accuracy_score(y, model.predict(X))
     mlflow.log_metric("accuracy", acc)
