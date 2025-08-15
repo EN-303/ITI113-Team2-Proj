@@ -9,7 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.py[cod]
-*$py.class
+*.class
 
 .cache/
 
@@ -46,6 +46,8 @@ pip-delete-this-directory.txt
 *.nbconvert.ipynb
 nbsignatures.db
 history.sqlite
+.jupyter/
+.local/
 
 # IPython
 profile_default/
@@ -102,6 +104,15 @@ Thumbs.db
 .jupyter/lab/workspaces/
 lab/workspaces/
 
+
+# Ignore shell config and history files
+.bashrc
+.lesshst
+
+# Ignore SageMaker or Jupyter plugin caches
+.sagemaker_sql_editor_api_cache
+
+
 EOL
 
 echo "🗑 Removing ignored files from Git tracking..."
@@ -118,7 +129,7 @@ git add .
 # echo "📥 Staging cleaned notebooks..."
 # git add *.ipynb || true
 
-# echo "💾 Committing changes..."
-# git commit -m "Commit" || true
+echo "💾 Committing changes..."
+git commit -m "Commit" || true
 
-# echo "✅ Git repo cleaned successfully!"
+echo "✅ Git repo cleaned successfully!"
