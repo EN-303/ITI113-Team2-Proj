@@ -14,21 +14,24 @@ import joblib
 def build_preprocessor(numeric_cols, categorical_cols):
     print('preprocess-transformer-start')
     
-    numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', StandardScaler())
+    numerical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='median')), # Although no missing values, it's good practice
+    ('scaler', StandardScaler())
     ])
 
     categorical_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))
     ])
-
-    preprocessor = ColumnTransformer(transformers=[
-        ('num', numeric_transformer, numeric_cols),
-        ('cat', categorical_transformer, categorical_cols),
-        ('gender', 'passthrough', ['gender'])
-    ])
+    
+    # Create a preprocessor to apply the transformations
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numerical_transformer, numeric_cols),
+            ('cat', categorical_transformer, categorical_cols)
+        ],
+        remainder='passthrough'
+    )
     
     print('preprocess-transformer-end')
 
@@ -56,7 +59,7 @@ if __name__ == "__main__":
     df.drop(columns=["patientid"], inplace=True) #drop column
     
     # Define categorical and numerical features for preprocessing
-    categorical_features = ['chestpain', 'fastingbloodsugar', 'restingrelectro', 'exerciseangia', 'slope', 'noofmajorvessels']
+    categorical_features = ['gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 'exerciseangia', 'slope', 'noofmajorvessels']
     numerical_features = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
 
     X = df.drop(columns=["target"])
@@ -71,7 +74,7 @@ if __name__ == "__main__":
     joblib.dump(preprocessor, os.path.join(output_transformer_path, "preprocessor.pkl"))
 
     cat_features = preprocessor.named_transformers_['cat']['onehot'].get_feature_names_out(categorical_features)
-    all_feature_names = numerical_features + list(cat_features) + ['gender']
+    all_feature_names = numerical_features + list(cat_features)
 
     # Combine back into DataFrame
     X_transformed_df = pd.DataFrame(X_transformed, columns=all_feature_names)
