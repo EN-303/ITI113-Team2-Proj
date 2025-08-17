@@ -16,9 +16,12 @@ import mlflow.sklearn
 import os
 import argparse
 import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score, roc_curve
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, precision_recall_curve, PrecisionRecallDisplay, RocCurveDisplay
 import joblib
 import glob
 
@@ -75,3 +78,4 @@ with mlflow.start_run(run_name=args.run_name) as run:
 
     print(f"Training complete. Accuracy: {acc:.4f}")
     print(f"MLflow Run ID: {run.info.run_id}")
+    print(f"Model saved to {os.path.join(args.model_output_path, 'model.joblib')}")

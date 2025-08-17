@@ -3,77 +3,82 @@ import argparse
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
 import os
+import joblib
 
-def preprocess(df):
-    print('preprocess-start')
-    print(f"Dataset shape: {df.shape}")
+def build_preprocessor(numeric_cols, categorical_cols):
+    print('preprocess-transformer-start')
+    
+    numeric_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+    ])
 
-    #drop patient identifier
-    df.drop(columns=['patientid'], inplace=True)
-    
-    df['oldpeak'] = df['oldpeak'].apply(lambda x: 0 if x < 0 else x)
-    df['oldpeak_log'] = np.log1p(df['oldpeak'])
-    df.drop(columns=['oldpeak'], inplace=True)
-    print('transform oldpeak-end')
-    
-    num_cols = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak_log']
-    for col in num_cols:
-        #Replace invalid zeros with NaN 
-        if col in ['restingBP', 'serumcholestrol']:  # zero Cholesterol/RestingBP is invalid
-            df[col] = df[col].replace(0, np.nan)
-        
-        #Impute NaNs with median
-        median_val = df[col].median()
-        df[col] = df[col].fillna(median_val)
-        
-        #IQR-based Outlier Capping (Winsorization)
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
-        
-        # Cap the outliers to within the IQR bounds
-        df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
-    print('impute and remove outlier-end')
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse=False))
+    ])
 
-    #To group categorical variable
-    # df['ChestPainType_Grouped'] = df['ChestPainType'].replace({'TA': 'Other', 'ATA': 'Other'})
-    # df = df.drop(columns=['ChestPainType'])
-    # df = pd.get_dummies(df, columns=['ChestPainType_Grouped'], drop_first=False)
+    preprocessor = ColumnTransformer(transformers=[
+        ('num', numeric_transformer, numeric_cols),
+        ('cat', categorical_transformer, categorical_cols),
+        ('gender', 'passthrough', ['gender'])
+    ])
     
-    #One-Hot Encoding on categorical variable
-    df = pd.get_dummies(df, columns=['chestpain'], drop_first=False) #Keep all dummy columns
-    df = pd.get_dummies(df, columns=['restingrelectro'], drop_first=False)
-    df = pd.get_dummies(df, columns=['slope'], drop_first=False)
-    df = pd.get_dummies(df, columns=['noofmajorvessels'], drop_first=False) 
-    print('encoding-end')
-    
-    print(f"Dataset: {df.head(2)}")
-    print('preprocess-end')
+    print('preprocess-transformer-end')
 
-    return df
+    return preprocessor
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-path", type=str, help="Directory containing Team2Dataset.csv")
     parser.add_argument("--output-train-path", type=str, help="Output directory for train.csv")
     parser.add_argument("--output-test-path", type=str, help="Output directory for test.csv")
+    parser.add_argument("--output-transformer-path", type=str, help="Output directory for preprocessor.pkl")
     args = parser.parse_args()
 
     # Use provided paths or fall back to SageMaker defaults
     input_path = args.input_path or "/opt/ml/processing/input"
     output_train_path = args.output_train_path or "/opt/ml/processing/train"
     output_test_path = args.output_test_path or "/opt/ml/processing/test"
+    output_transformer_path = args.output_transformer_path or "/opt/ml/processing/artifacts"
 
     input_file = os.path.join(input_path, "Team2Dataset.csv")
     print(f"Reading input file from {input_file}...")
     df = pd.read_csv(input_file)
-    df = preprocess(df) #clean data
+    # df = preprocess(df) #clean data
+    
+    df.drop(columns=["patientid"], inplace=True) #drop column
+    
+    # Define categorical and numerical features for preprocessing
+    categorical_features = ['chestpain', 'fastingbloodsugar', 'restingrelectro', 'exerciseangia', 'slope', 'noofmajorvessels']
+    numerical_features = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
+
+    X = df.drop(columns=["target"])
+    y = df["target"]
+
+    # Fit transformer
+    preprocessor = build_preprocessor(numerical_features, categorical_features)
+    X_transformed = preprocessor.fit_transform(X)
+
+    # Save the transformer
+    os.makedirs(output_transformer_path, exist_ok=True)
+    joblib.dump(preprocessor, os.path.join(output_transformer_path, "preprocessor.pkl"))
+
+    cat_features = preprocessor.named_transformers_['cat']['onehot'].get_feature_names_out(categorical_features)
+    all_feature_names = numerical_features + list(cat_features) + ['gender']
+
+    # Combine back into DataFrame
+    X_transformed_df = pd.DataFrame(X_transformed, columns=all_feature_names)
+    X_transformed_df["target"] = y.values
     
     print("Splitting into train/test...")
-    train, test = train_test_split(df, test_size=0.2, random_state=42)
+    train, test = train_test_split(X_transformed_df, test_size=0.2, random_state=42)
 
     os.makedirs(output_train_path, exist_ok=True)
     os.makedirs(output_test_path, exist_ok=True)
@@ -87,4 +92,5 @@ if __name__ == "__main__":
     print(f"Saving test to {test_output}")
     test.to_csv(test_output, index=False)
 
-    print("Preprocessing complete.")
+    print("Preprocessing completed!")
+    print("End")
