@@ -30,7 +30,7 @@ parser.add_argument("--tracking_server_arn", type=str, required=True)
 parser.add_argument("--experiment_name", type=str, default="Default")
 parser.add_argument("--model_output_path", type=str, default="/opt/ml/model")
 parser.add_argument("--model_type", type=str, default="logistic_regression")
-parser.add_argument("--C", type=float, default=0.5) #Only for LR
+parser.add_argument("--c_param", type=float, default=0.5) #Only for LR
 parser.add_argument("--n_estimators", type=int, default=100)  # Only for RF
 parser.add_argument("--max_depth", type=int, default=None)  # Only for RF
 parser.add_argument("--run_name", type=str, default="run-default")
@@ -54,8 +54,8 @@ with mlflow.start_run(run_name=args.run_name) as run:
     mlflow.log_param("model_type", args.model_type)
 
     if args.model_type == "logistic_regression":
-        mlflow.log_param("C", args.C)
-        model = LogisticRegression(C=args.C)
+        mlflow.log_param("C", args.c_param)
+        model = LogisticRegression(C=args.c_param)
         print('LR')
     elif args.model_type == "random_forest":
         mlflow.log_param("n_estimators", args.n_estimators)

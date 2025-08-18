@@ -10,6 +10,7 @@ from sklearn.pipeline import Pipeline
 
 import os
 import joblib
+import shutil
 
 def build_preprocessor(numeric_cols, categorical_cols):
     print('preprocess-transformer-start')
@@ -95,5 +96,17 @@ if __name__ == "__main__":
     print(f"Saving test to {test_output}")
     test.to_csv(test_output, index=False)
 
+    # Archive original input file to transformer (artifact) output
+    input_archive_dir = os.path.join(output_transformer_path, "input_archive")
+    os.makedirs(input_archive_dir, exist_ok=True)
+    
+    try:
+        archived_file_path = os.path.join(input_archive_dir, os.path.basename(input_file))
+        shutil.move(input_file, archived_file_path)
+        print(f"Archived input file to: {archived_file_path}")
+    except Exception as e:
+        print(f"Warning: Failed to archive input file: {e}")
+    
+    
     print("Preprocessing completed!")
     print("End")
