@@ -24,17 +24,55 @@ from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, r
 from sklearn.metrics import classification_report, ConfusionMatrixDisplay, precision_recall_curve, PrecisionRecallDisplay, RocCurveDisplay
 import joblib
 import glob
+import json
+import ast
 
+try:
+    import matplotlib
+    import matplotlib.pyplot as plt
+except ImportError:
+    print("matplotlib is not installed. Plotting will be skipped.")
+    
 parser = argparse.ArgumentParser()
 parser.add_argument("--tracking_server_arn", type=str, required=True)
 parser.add_argument("--experiment_name", type=str, default="Default")
 parser.add_argument("--model_output_path", type=str, default="/opt/ml/model")
 parser.add_argument("--model_type", type=str, default="logistic_regression")
-parser.add_argument("--c_param", type=float, default=0.5) #Only for LR
-parser.add_argument("--n_estimators", type=int, default=100)  # Only for RF
-parser.add_argument("--max_depth", type=int, default=None)  # Only for RF
+parser.add_argument("--model_param_grid", type=str)  # Will be a JSON string
+parser.add_argument("--max_iter", type=int, default=1000)
+parser.add_argument("--random_state", type=int, default=42)
 parser.add_argument("--run_name", type=str, default="run-default")
 args, _ = parser.parse_known_args()
+
+def safe_parse_param_grid(raw_string):
+    try:
+        return json.loads(raw_string)
+    except json.JSONDecodeError:
+        print("⚠️ json.loads() failed. Falling back to Python-style parser.")
+        print("Raw string received:", raw_string)
+        
+        # Try to parse as key=value pairs
+        try:
+            param_dict = {}
+            import re
+            param_items = re.split(r',(?![^[]*\])', raw_string)
+            for item in param_items:
+                if '=' not in item:
+                    continue
+                key, val = item.split('=', 1)
+                key = key.strip()
+                val = val.strip()
+                # Convert string "None" to Python None
+                if val == "None":
+                    parsed_val = None
+                else:
+                    parsed_val = ast.literal_eval(val)
+                param_dict[key] = parsed_val
+            return param_dict
+        except Exception as e:
+            print("❌ Fallback parsing also failed.")
+            print("Error:", str(e))
+            raise ValueError("Invalid format for model_param_grid.")
 
 print('Start-Train')
 # Load training data
@@ -49,33 +87,65 @@ y = df["target"]
 mlflow.set_tracking_uri(args.tracking_server_arn)
 mlflow.set_experiment(args.experiment_name)
 
+experiment = mlflow.set_experiment(args.experiment_name)
+print("Experiment ID:", experiment.experiment_id)
+
 with mlflow.start_run(run_name=args.run_name) as run:
     
     mlflow.log_param("model_type", args.model_type)
+    
+    model_param_grid = safe_parse_param_grid(args.model_param_grid)
+    print("parsed model_param_grid:")
+    print(model_param_grid)
 
+    mlflow.log_param("random_state", args.random_state)
+    mlflow.log_param("max_iter", args.max_iter)
+    mlflow.log_param("param_grid", str(model_param_grid))
+    
     if args.model_type == "logistic_regression":
-        mlflow.log_param("C", args.c_param)
-        model = LogisticRegression(C=args.c_param)
+        model = LogisticRegression(max_iter=args.max_iter, random_state=args.random_state)
+        model_grid = GridSearchCV(model, model_param_grid, cv=5, scoring='accuracy', n_jobs=-1, verbose=1)
         print('LR')
     elif args.model_type == "random_forest":
-        mlflow.log_param("n_estimators", args.n_estimators)
-        mlflow.log_param("max_depth", args.max_depth)
-        model = RandomForestClassifier(n_estimators=args.n_estimators, max_depth=args.max_depth)
+        model = RandomForestClassifier(random_state=args.random_state)
+        model_grid = GridSearchCV(model, model_param_grid, cv=5, scoring='accuracy', n_jobs=-1, verbose=1)
         print('RF')
     else:
         raise ValueError(f"Unsupported model type: {args.model_type}")
         
-    model.fit(X, y)
-    acc = accuracy_score(y, model.predict(X))
-    mlflow.log_metric("accuracy", acc)
+    model_grid.fit(X, y)
+    best_model = model_grid.best_estimator_
 
-    mlflow.sklearn.log_model(sk_model=model, artifact_path="model")
+    # Log best parameters
+    mlflow.log_params(model_grid.best_params_)
+
+    #evaluate
+    y_pred = best_model.predict(X)
+    mlflow.log_metric("accuracy", accuracy_score(y, y_pred))
+    mlflow.log_metric("recall", recall_score(y, y_pred, average="binary"))
+    mlflow.log_metric("precision", precision_score(y, y_pred, average="binary"))
+    mlflow.log_metric("f1_score", f1_score(y, y_pred, average="binary"))
+
+    # Log classification report
+    report = classification_report(y, y_pred)
+    with open("classification_report.txt", "w") as f:
+        f.write(report)
+    mlflow.log_artifact("classification_report.txt")
+
+    # Log confusion matrix
+    # fig, ax = plt.subplots()
+    # ConfusionMatrixDisplay.from_predictions(y, y_pred, ax=ax)
+    # plt.savefig("confusion_matrix.png")
+    # mlflow.log_artifact("confusion_matrix.png")
+    
+    # Log the trained model
+    mlflow.sklearn.log_model(sk_model=best_model, artifact_path="model")
 
     os.makedirs(args.model_output_path, exist_ok=True)
-    joblib.dump(model, os.path.join(args.model_output_path, "model.joblib"))
+    joblib.dump(best_model, os.path.join(args.model_output_path, "model.joblib"))
     with open(os.path.join(args.model_output_path, "run_id.txt"), "w") as f:
         f.write(run.info.run_id)
 
-    print(f"Training complete. Accuracy: {acc:.4f}")
+    print(f"Training complete.")
     print(f"MLflow Run ID: {run.info.run_id}")
     print(f"Model saved to {os.path.join(args.model_output_path, 'model.joblib')}")
