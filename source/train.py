@@ -8,7 +8,7 @@ try:
     import sagemaker_mlflow
 except ImportError:
     print("Installing MLflow...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install",  "boto3==1.37.1", "botocore==1.37.1", "s3transfer", "mlflow==2.22.0", "sagemaker-mlflow==0.1.0"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install",  "boto3==1.37.1", "botocore==1.37.1", "s3transfer", "mlflow==2.22.0", "sagemaker-mlflow==0.1.0", "numpy", "matplotlib==3.7.3"])
     import mlflow
     import sagemaker_mlflow
     
@@ -28,11 +28,21 @@ import json
 import ast
 
 try:
-    import matplotlib
     import matplotlib.pyplot as plt
-except ImportError:
-    print("matplotlib is not installed. Plotting will be skipped.")
-    
+    import matplotlib
+    matplotlib.use('Agg')  # Only use this for headless environments (e.g. script mode)
+    print("matplotlib loaded")
+except ImportError as e:
+    print("matplotlib is not installed or failed to load:", e)
+    plt = None
+
+import importlib.util
+if importlib.util.find_spec("matplotlib") is not None:
+    print("✅ matplotlib is available")
+else:
+    print("❌ matplotlib is NOT available")
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--tracking_server_arn", type=str, required=True)
 parser.add_argument("--experiment_name", type=str, default="Default")
@@ -41,6 +51,7 @@ parser.add_argument("--model_type", type=str, default="logistic_regression")
 parser.add_argument("--model_param_grid", type=str)  # Will be a JSON string
 parser.add_argument("--max_iter", type=int, default=1000)
 parser.add_argument("--random_state", type=int, default=42)
+parser.add_argument("--cv", type=int, default=5)
 parser.add_argument("--run_name", type=str, default="run-default")
 args, _ = parser.parse_known_args()
 
@@ -101,14 +112,15 @@ with mlflow.start_run(run_name=args.run_name) as run:
     mlflow.log_param("random_state", args.random_state)
     mlflow.log_param("max_iter", args.max_iter)
     mlflow.log_param("param_grid", str(model_param_grid))
+    mlflow.log_param("cv", args.cv)
     
     if args.model_type == "logistic_regression":
         model = LogisticRegression(max_iter=args.max_iter, random_state=args.random_state)
-        model_grid = GridSearchCV(model, model_param_grid, cv=5, scoring='accuracy', n_jobs=-1, verbose=1)
+        model_grid = GridSearchCV(model, model_param_grid, cv=args.cv, scoring='accuracy', n_jobs=-1, verbose=1)
         print('LR')
     elif args.model_type == "random_forest":
         model = RandomForestClassifier(random_state=args.random_state)
-        model_grid = GridSearchCV(model, model_param_grid, cv=5, scoring='accuracy', n_jobs=-1, verbose=1)
+        model_grid = GridSearchCV(model, model_param_grid, cv=args.cv, scoring='accuracy', n_jobs=-1, verbose=1)
         print('RF')
     else:
         raise ValueError(f"Unsupported model type: {args.model_type}")
@@ -133,11 +145,53 @@ with mlflow.start_run(run_name=args.run_name) as run:
     mlflow.log_artifact("classification_report.txt")
 
     # Log confusion matrix
-    # fig, ax = plt.subplots()
-    # ConfusionMatrixDisplay.from_predictions(y, y_pred, ax=ax)
-    # plt.savefig("confusion_matrix.png")
-    # mlflow.log_artifact("confusion_matrix.png")
+    try:
+        fig, ax = plt.subplots()
+        ConfusionMatrixDisplay.from_predictions(y, y_pred, ax=ax)
+        plt.savefig("confusion_matrix.png")
+        mlflow.log_artifact("confusion_matrix.png")
+    except Exception as e:
+        print("Error on confusion matrix:")
+        print("Error:", str(e))
+
+    # # Log feature importances if available
+    # if plt:
+    #     try:
+    #         if hasattr(best_model, "feature_importances_"):
+    #             importances = best_model.feature_importances_
+    #             feature_names = X.columns
     
+    #             fig, ax = plt.subplots(figsize=(10, 6))
+    #             sorted_idx = np.argsort(importances)[::-1]
+    #             ax.barh(range(len(importances)), importances[sorted_idx])
+    #             ax.set_yticks(range(len(importances)))
+    #             ax.set_yticklabels(feature_names[sorted_idx])
+    #             ax.set_title("Feature Importances (Random Forest)")
+    #             plt.tight_layout()
+    #             plt.savefig("feature_importances.png")
+    #             mlflow.log_artifact("feature_importances.png")
+    #             plt.close(fig)
+    
+    #         elif hasattr(best_model, "coef_"):
+    #             importances = np.abs(best_model.coef_[0])
+    #             feature_names = X.columns
+    
+    #             fig, ax = plt.subplots(figsize=(10, 6))
+    #             sorted_idx = np.argsort(importances)[::-1]
+    #             ax.barh(range(len(importances)), importances[sorted_idx])
+    #             ax.set_yticks(range(len(importances)))
+    #             ax.set_yticklabels(feature_names[sorted_idx])
+    #             ax.set_title("Feature Importances (Logistic Regression)")
+    #             plt.tight_layout()
+    #             plt.savefig("feature_importances.png")
+    #             mlflow.log_artifact("feature_importances.png")
+    #             plt.close(fig)
+    
+    #         else:
+    #             print("⚠️ Feature importances not available for this model.")
+    #     except Exception as e:
+    #         print(f"⚠️ Could not log feature importances: {e}")
+        
     # Log the trained model
     mlflow.sklearn.log_model(sk_model=best_model, artifact_path="model")
 

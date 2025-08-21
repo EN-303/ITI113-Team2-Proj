@@ -1,6 +1,7 @@
 import argparse
 import pandas as pd
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score, roc_curve
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, precision_recall_curve, PrecisionRecallDisplay, RocCurveDisplay
 import joblib
 import os
 import json
@@ -44,9 +45,20 @@ if __name__ == "__main__":
     print("Running predictions on the test dataset.")
     predictions = model.predict(X_test)
     accuracy = accuracy_score(y_test, predictions)
-    report = {"accuracy": accuracy}
+    precision = precision_score(y_test, predictions, average="binary")
+    recall = recall_score(y_test, predictions, average="binary")
+    f1 = f1_score(y_test, predictions, average="binary")
+    
+    report = {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1
+    }
     print(f"Calculated accuracy: {accuracy:.4f}")
 
+    # report = classification_report(y_test, predictions)
+    
     # --- Check for Existing Baseline Model in SageMaker Model Registry ---
     print(f"Checking for baseline model in region: {args.region}")
     sagemaker_client = boto3.client("sagemaker", region_name=args.region)
