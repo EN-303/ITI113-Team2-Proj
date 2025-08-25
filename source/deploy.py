@@ -20,6 +20,9 @@ import sagemaker
 import boto3
 from sagemaker.model import Model
 import shutil
+from sagemaker.model_monitor import DataCaptureConfig
+from sagemaker.serializers import JSONSerializer
+from sagemaker.deserializers import JSONDeserializer
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -90,12 +93,30 @@ if __name__ == "__main__":
             raise e
     
     # Deploy the model to an endpoint
+    bucket_name = 'iti113-team2-bucket'
+    base_folder = 'Team2'
     print(f"Deploying registered model from ARN to endpoint: {args.endpoint_name}")
-    model.deploy(
-        initial_instance_count=1,
-        instance_type="ml.t2.medium",
-        endpoint_name=args.endpoint_name,
-        # Update endpoint if it already exists
-        update_endpoint=True
-    )
-    print("Deployment complete.")
+
+    try:
+        data_capture_config = DataCaptureConfig(
+            enable_capture=True,
+            sampling_percentage=100,
+            destination_s3_uri=f"s3://{bucket_name}/{base_folder}/monitoring/data-capture",
+            # csv_content_types=['text/csv'],
+            json_content_types=['application/json'],
+            sagemaker_session=sagemaker_session
+        )
+
+        model.deploy(
+            initial_instance_count=1,
+            instance_type="ml.t2.medium",
+            endpoint_name=args.endpoint_name,
+            data_capture_config=data_capture_config,
+            # Update endpoint if it already exists
+            update_endpoint=True,
+            serializer=JSONSerializer(),
+            deserializer=JSONDeserializer()
+        )
+        print("Deployment complete.")
+    except Exception as e:
+        print(f"Error model.deploy: {e}")
