@@ -58,11 +58,10 @@ if __name__ == "__main__":
     # df = preprocess(df) #clean data
     
     df.drop(columns=["patientid"], inplace=True) #drop column
-    df.drop(columns=['age'], inplace=True) #drop column
     
     # Define categorical and numerical features for preprocessing
     categorical_features = ['gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 'exerciseangia', 'slope', 'noofmajorvessels']
-    numerical_features = ['restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
+    numerical_features = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
 
     X = df.drop(columns=["target"])
     y = df["target"]
@@ -97,16 +96,16 @@ if __name__ == "__main__":
     print(f"Saving test to {test_output}")
     test.to_csv(test_output, index=False)
 
-    # # Archive original input file to transformer (artifact) output
-    # input_archive_dir = os.path.join(output_transformer_path, "input_archive")
-    # os.makedirs(input_archive_dir, exist_ok=True)
+    # Archive original input file to transformer (artifact) output
+    input_archive_dir = os.path.join(output_transformer_path, "input_archive")
+    os.makedirs(input_archive_dir, exist_ok=True)
     
-    # try:
-    #     archived_file_path = os.path.join(input_archive_dir, os.path.basename(input_file))
-    #     shutil.move(input_file, archived_file_path)
-    #     print(f"Archived input file to: {archived_file_path}")
-    # except Exception as e:
-    #     print(f"Warning: Failed to archive input file: {e}")
+    try:
+        archived_file_path = os.path.join(input_archive_dir, os.path.basename(input_file))
+        shutil.move(input_file, archived_file_path)
+        print(f"Archived input file to: {archived_file_path}")
+    except Exception as e:
+        print(f"Warning: Failed to archive input file: {e}")
     
     
     print("Preprocessing completed!")

@@ -49,9 +49,9 @@ parser.add_argument("--experiment_name", type=str, default="Default")
 parser.add_argument("--model_output_path", type=str, default="/opt/ml/model")
 parser.add_argument("--model_type", type=str, default="logistic_regression")
 parser.add_argument("--model_param_grid", type=str)  # Will be a JSON string
-parser.add_argument("--max_iter", type=int)
-parser.add_argument("--random_state", type=int)
-parser.add_argument("--model_cv", type=int)
+parser.add_argument("--max_iter", type=int, default=1000)
+parser.add_argument("--random_state", type=int, default=42)
+parser.add_argument("--cv", type=int, default=5)
 parser.add_argument("--run_name", type=str, default="run-default")
 args, _ = parser.parse_known_args()
 
@@ -87,8 +87,7 @@ def safe_parse_param_grid(raw_string):
 
 print('Start-Train')
 # Load training data
-# train_path = glob.glob("/opt/ml/input/data/train/*.csv")[0]
-train_path = os.path.join("/opt/ml/input/data/train", "train.csv")
+train_path = glob.glob("/opt/ml/input/data/train/*.csv")[0]
 df = pd.read_csv(train_path)
 print(df.head())
 
@@ -111,17 +110,17 @@ with mlflow.start_run(run_name=args.run_name) as run:
     print(model_param_grid)
 
     mlflow.log_param("random_state", args.random_state)
+    mlflow.log_param("max_iter", args.max_iter)
     mlflow.log_param("param_grid", str(model_param_grid))
-    mlflow.log_param("cv", args.model_cv)
+    mlflow.log_param("cv", args.cv)
     
     if args.model_type == "logistic_regression":
-        mlflow.log_param("max_iter", args.max_iter)
         model = LogisticRegression(max_iter=args.max_iter, random_state=args.random_state)
-        model_grid = GridSearchCV(model, model_param_grid, cv=args.model_cv, scoring='accuracy', n_jobs=-1, verbose=1)
+        model_grid = GridSearchCV(model, model_param_grid, cv=args.cv, scoring='accuracy', n_jobs=-1, verbose=1)
         print('LR')
     elif args.model_type == "random_forest":
         model = RandomForestClassifier(random_state=args.random_state)
-        model_grid = GridSearchCV(model, model_param_grid, cv=args.model_cv, scoring='accuracy', n_jobs=-1, verbose=1)
+        model_grid = GridSearchCV(model, model_param_grid, cv=args.cv, scoring='accuracy', n_jobs=-1, verbose=1)
         print('RF')
     else:
         raise ValueError(f"Unsupported model type: {args.model_type}")

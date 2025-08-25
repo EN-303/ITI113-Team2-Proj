@@ -50,12 +50,7 @@ def output_fn(prediction, response_content_type):
         try:
             # Convert numpy array to a list and wrap it in a JSON object.
             response = {"predictions": prediction.tolist()}
-            # json_response = json.dumps(response)
-            # # return json_response.encode('utf-8')  # Return bytes, not str
-            # return json_response
-
-            return json.dumps(response).encode("utf-8"), "application/json"
-            
+            return json.dumps(response)
         except Exception as e:
             raise ValueError(f"Error serializing prediction to JSON: {e}")
     else:
