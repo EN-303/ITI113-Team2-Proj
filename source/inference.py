@@ -11,6 +11,7 @@ def model_fn(model_dir):
     try:
         model = joblib.load(model_path)
         print("Model loaded successfully.")
+        
         return model
     except Exception as e:
         print(f"Error loading model: {e}")

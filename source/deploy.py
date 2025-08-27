@@ -118,5 +118,7 @@ if __name__ == "__main__":
             deserializer=JSONDeserializer()
         )
         print("Deployment complete.")
+        
     except Exception as e:
         print(f"Error model.deploy: {e}")
+        
