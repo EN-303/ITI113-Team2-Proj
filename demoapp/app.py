@@ -2,7 +2,9 @@ import joblib
 import streamlit as st
 import pandas as pd
 
-st.title('Heart Disease Prediction App v1')
+st.title('Heart Disease Prediction App')
+# Set the page layout to wide mode
+st.set_page_config(layout="wide")
 
 @st.cache_resource
 def load_model():
@@ -112,22 +114,25 @@ input_df = pd.DataFrame(input_vector, columns=[
     'exerciseangia', 'oldpeak', 'slope', 'noofmajorvessels'
 ])
 
-X_transformed = preprocessor.transform(input_df)
-
-# Prediction section
-st.markdown("---")
-st.subheader("🧪 Prediction")
-
-if st.button("Predict Heart Disease Risk"):
-    prediction = predict(X_transformed)
-    if prediction is not None:
-        if prediction == 0:
-            st.success("✅ Prediction: No Heart Disease")
-        else:
-            st.error("⚠️ Prediction: Potential Heart Disease Detected")
-
-# Display as table
-# input_df = pd.DataFrame(input_vector, columns=feature_names)
-st.subheader("🧾 Patient Feature Summary")
-st.dataframe(input_df, use_container_width=True)
-
+try:
+    print(input_df.columns)
+    X_transformed = preprocessor.transform(input_df)
+    
+    # Prediction section
+    st.markdown("---")
+    st.subheader("🧪 Prediction")
+    
+    if st.button("Predict Heart Disease Risk"):
+        prediction = predict(X_transformed)
+        if prediction is not None:
+            if prediction == 0:
+                st.success("✅ Prediction: No Heart Disease")
+            else:
+                st.error("⚠️ Prediction: Potential Heart Disease Detected")
+    
+    # Display as table
+    # input_df = pd.DataFrame(input_vector, columns=feature_names)
+    st.subheader("🧾 Patient Feature Summary")
+    st.dataframe(input_df, use_container_width=True)
+except Exception as e:
+    st.error(f"Error: {e}")
